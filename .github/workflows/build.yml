@@ -1,34 +1,26 @@
-name: Build Orders API
-
-on:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: read
-  packages: write
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
+      - name: Checkout GitOps repository
         uses: actions/checkout@v4
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          repository: pandapolarb3ar/orders-gitops
+          token: ${{ secrets.GITOPS_PAT_SECRET }}
+          path: gitops
 
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/orders-api:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/orders-api:latest
+      - name: Update image tag in GitOps repo
+        run: |
+          sed -i \
+            "s|image: ghcr.io/pandapolarb3ar/orders-api:.*|image: ghcr.io/pandapolarb3ar/orders-api:${GITHUB_SHA}|" \
+            gitops/deployment.yaml
+
+      - name: Commit and push GitOps change
+        run: |
+          cd gitops
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add deployment.yaml
+
+          git diff --cached --quiet && exit 0
+
+          git commit -m "Deploy orders-api ${GITHUB_SHA}"
+          git push
